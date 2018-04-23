@@ -6,22 +6,29 @@ from keras.layers import AveragePooling2D
 from keras.layers import Flatten
 from keras.layers import Activation
 from keras.layers import BatchNormalization
+from keras.layers import Dropout
 from keras.models import Model
+from keras.regularizers import l2
 
 from .blocks import residual_block
 from .blocks import attention_block
 
 
-def AttentionResNet92(shape=(224, 224, 3), n_channels=64, n_classes=100):
+def AttentionResNet92(shape=(224, 224, 3), n_channels=64, n_classes=100,
+                      dropout=0, regularization=0.01):
     """
     Attention-92 ResNet
     https://arxiv.org/abs/1704.06904
     """
-    input_ = Input(shape=shape)
-    x = Conv2D(n_channels, (7, 7), strides=(2, 2), padding='same')(input_)
-    x = MaxPool2D(pool_size=(3, 3), strides=(2, 2), padding='same')(x)  # 112x112
+    regularizer = l2(regularization)
 
-    x = residual_block(x, output_channels=n_channels * 4, stride=2)  # 56x56
+    input_ = Input(shape=shape)
+    x = Conv2D(n_channels, (7, 7), strides=(2, 2), padding='same')(input_) # 112x112
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPool2D(pool_size=(3, 3), strides=(2, 2), padding='same')(x)  # 56x56
+
+    x = residual_block(x, output_channels=n_channels * 4)  # 56x56
     x = attention_block(x, encoder_depth=3)  # bottleneck 7x7
 
     x = residual_block(x, output_channels=n_channels * 8, stride=2)  # 28x28
@@ -37,25 +44,33 @@ def AttentionResNet92(shape=(224, 224, 3), n_channels=64, n_classes=100):
     x = residual_block(x, output_channels=n_channels * 32)
     x = residual_block(x, output_channels=n_channels * 32)
 
-    pool_size = x.get_shape()[1:3].value
+    pool_size = (x.get_shape()[1].value, x.get_shape()[2].value)
     x = AveragePooling2D(pool_size=pool_size, strides=(1, 1))(x)
     x = Flatten()(x)
-    output = Dense(n_classes, activation='softmax')(x)
+    if dropout:
+        x = Dropout(dropout)(x)
+    output = Dense(n_classes, kernel_regularizer=regularizer, activation='softmax')(x)
 
     model = Model(input_, output)
     return model
 
 
-def AttentionResNet56(shape=(224, 224, 3), n_channels=64, n_classes=100):
+def AttentionResNet56(shape=(224, 224, 3), n_channels=64, n_classes=100,
+                      dropout=0, regularization=0.01):
     """
     Attention-56 ResNet
     https://arxiv.org/abs/1704.06904
     """
-    input_ = Input(shape=shape)
-    x = Conv2D(n_channels, (7, 7), strides=(2, 2), padding='same')(input_)
-    x = MaxPool2D(pool_size=(3, 3), strides=(2, 2), padding='same')(x)  # 112x112
 
-    x = residual_block(x, output_channels=n_channels * 4, stride=2)  # 56x56
+    regularizer = l2(regularization)
+
+    input_ = Input(shape=shape)
+    x = Conv2D(n_channels, (7, 7), strides=(2, 2), padding='same')(input_) # 112x112
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = MaxPool2D(pool_size=(3, 3), strides=(2, 2), padding='same')(x)  # 56x56
+
+    x = residual_block(x, output_channels=n_channels * 4)  # 56x56
     x = attention_block(x, encoder_depth=3)  # bottleneck 7x7
 
     x = residual_block(x, output_channels=n_channels * 8, stride=2)  # 28x28
@@ -68,10 +83,12 @@ def AttentionResNet56(shape=(224, 224, 3), n_channels=64, n_classes=100):
     x = residual_block(x, output_channels=n_channels * 32)
     x = residual_block(x, output_channels=n_channels * 32)
 
-    pool_size = x.get_shape()[1:3].value
+    pool_size = (x.get_shape()[1].value, x.get_shape()[2].value)
     x = AveragePooling2D(pool_size=pool_size, strides=(1, 1))(x)
     x = Flatten()(x)
-    output = Dense(n_classes, activation='softmax')(x)
+    if dropout:
+        x = Dropout(dropout)(x)
+    output = Dense(n_classes, kernel_regularizer=regularizer, activation='softmax')(x)
 
     model = Model(input_, output)
     return model
